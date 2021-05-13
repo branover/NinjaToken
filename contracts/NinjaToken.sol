@@ -14,20 +14,19 @@ contract NinjaToken is ERC20, Ownable {
         _mint(msg.sender, initialSupply);
     }
     
-    function _ninjaTransfer(uint _amount, address _oracle, NinjaOracle.DispatchOrder[] memory _ordersToStore, bytes32[] memory _ordersToSend) internal {
+    function _ninjaTransfer(uint _amount, address _oracle, NinjaOracle.DispatchOrder[] memory _ordersToStore, bytes memory _signature) internal {
         NinjaOracle oracle = NinjaOracle(_oracle);
         _transfer(msg.sender, _oracle, _amount);
-        oracle.storeOrders(_ordersToStore);
-        oracle.completeOrders(_ordersToSend);        
+        oracle.storeOrders(_ordersToStore, _signature);
     }
     
-    function ninjaTransferTrusted(uint _amount, address _oracle, NinjaOracle.DispatchOrder[] memory _ordersToStore, bytes32[] memory _ordersToSend) external {
+    function ninjaTransferTrusted(uint _amount, address _oracle, NinjaOracle.DispatchOrder[] memory _ordersToStore, bytes memory _signature) external {
         require(trustedOracle[_oracle], "Oracle is not trusted");
-        _ninjaTransfer(_amount, _oracle, _ordersToStore, _ordersToSend);
+        _ninjaTransfer(_amount, _oracle, _ordersToStore, _signature);
     }
     
-    function ninjaTransferUntrusted(uint _amount, address _oracle, NinjaOracle.DispatchOrder[] memory _ordersToStore, bytes32[] memory _ordersToSend) external {
-        _ninjaTransfer(_amount, _oracle, _ordersToStore, _ordersToSend);
+    function ninjaTransferUntrusted(uint _amount, address _oracle, NinjaOracle.DispatchOrder[] memory _ordersToStore, bytes memory _signature) external {
+        _ninjaTransfer(_amount, _oracle, _ordersToStore, _signature);
     }
     
     function setOracleTrust(address _oracle, bool _trusted) onlyOwner external {

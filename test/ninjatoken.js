@@ -17,6 +17,21 @@ function fixSignature(signature) {
   return signature;
 }
 
+async function calculateSignature(orders) {
+  var all_hashes = 0
+  for (var i = 0; i < orders.length; i++) {
+    let hash = hashOrder(orders[i]);
+    all_hashes = await web3.utils.keccak256(web3.utils.encodePacked(hash, all_hashes));  
+  }  
+  signature = await web3.eth.sign(all_hashes, from_address);
+  signature = fixSignature(signature);
+  return signature;
+}
+
+function hashOrder(order) {
+  return web3.utils.keccak256(web3.utils.encodePacked(order[0], order[1], order[2]));
+}
+
 contract('NinjaToken', async accounts => {
   var ninja;
   var oracle;
@@ -25,8 +40,8 @@ contract('NinjaToken', async accounts => {
   var address;
   var amount;
   var nonce;
-  var hash;
-  var signature;
+  // var hash;
+  // var signature;
 
   beforeEach(async () => {
     ninja = await NinjaToken.deployed();
@@ -38,9 +53,9 @@ contract('NinjaToken', async accounts => {
     amount = 100;
     nonce = 0;
 
-    hash = await web3.utils.keccak256(web3.utils.encodePacked(to_address, amount, nonce));
-    signature = await web3.eth.sign(hash, from_address);
-    signature = fixSignature(signature);
+    // hash = await web3.utils.keccak256(web3.utils.encodePacked(to_address, amount, nonce));
+    // signature = await web3.eth.sign(hash, from_address);
+    // signature = fixSignature(signature);
   });
 
   it("Should put 10000 NinjaToken in the first account", async() => {
@@ -90,7 +105,7 @@ contract('NinjaToken', async accounts => {
     balance = await ninja.balanceOf.call(oracle.address);
     let contract_starting_balance = balance.toNumber();
 
-    await ninja.ninjaTransferUntrusted(1000, oracle.address, [], []);
+    await ninja.ninjaTransferUntrusted(1000, oracle.address, [], 0);
 
     balance = await ninja.balanceOf.call(accounts[0]);
     assert.equal(balance, account_one_starting_balance - amount, "Account 1 ending balance incorrect");
@@ -100,53 +115,34 @@ contract('NinjaToken', async accounts => {
   });
 
   it("Should emit an OrderStored event first, then ignore replayed order", async() => {
-    // let result = await ninja.ninjaTransferUntrusted(100, oracle.address, [[address, amount, nonce, signature]], [])
+    let order = [to_address, amount, nonce]
+    let hash = hashOrder(order);
     let result = await oracle.getOrderStatus(hash);
     assert.equal(result, NinjaOracle.OrderStatus.NULL, "Order status not NULL");
 
-    result = await oracle.storeOrder.sendTransaction(to_address, amount, nonce, signature);
-    await truffleAssert.eventEmitted(result, "OrderStored");
+    let signature = await calculateSignature([order]);
+    result = await oracle.completeOrder.sendTransaction(to_address, amount, nonce, signature);
+    await truffleAssert.eventEmitted(result, "OrderCompleted");
 
     result = await oracle.getOrderStatus(hash);
-    assert.equal(result, NinjaOracle.OrderStatus.SUBMITTED, "Order status not SUBMITTED"); 
+    assert.equal(result, NinjaOracle.OrderStatus.COMPLETED, "Order status not COMPLETED"); 
 
-    // result = await ninja.ninjaTransferUntrusted(100, oracle.address, [[address, amount, nonce, signature]], [])
-    result = await oracle.storeOrder.sendTransaction(to_address, amount, nonce, signature); 
-    await truffleAssert.eventNotEmitted(result, "OrderStored");
+    result = await oracle.completeOrder.sendTransaction(to_address, amount, nonce, signature); 
+    await truffleAssert.eventNotEmitted(result, "OrderCompleted");
   });
 
-  it("Should complete the order", async() => {
-    result = await oracle.getOrderStatus(hash);
-    assert.equal(result, NinjaOracle.OrderStatus.SUBMITTED, "Order status not SUBMITTED");
+  // it("Should complete the order", async() => {
+  //   let order = [to_address, amount, nonce]
+  //   let hash = hashOrder(order);
+  //   result = await oracle.getOrderStatus(hash);
+  //   assert.equal(result, NinjaOracle.OrderStatus.SUBMITTED, "Order status not SUBMITTED");
 
-    result = await oracle.completeOrder(hash);
-    truffleAssert.eventEmitted(result, "OrderCompleted");
+  //   result = await oracle.completeOrder(hash);
+  //   truffleAssert.eventEmitted(result, "OrderCompleted");
     
-    result = await oracle.getOrderStatus(hash);
-    assert.equal(result, NinjaOracle.OrderStatus.COMPLETED, "Order status not COMPLETED");
-  });
-
-  it("Should ensure order can't be completed multiple times", async() => {
-    result = await oracle.getOrderStatus(hash);
-    assert.equal(result, NinjaOracle.OrderStatus.COMPLETED, "Order status not COMPLETED");
-
-    result = await oracle.completeOrder(hash);
-    truffleAssert.eventNotEmitted(result, "OrderCompleted");
-
-    result = await oracle.getOrderStatus(hash);
-    assert.equal(result, NinjaOracle.OrderStatus.COMPLETED, "Order status not COMPLETED");
-  });
-
-  it("Should ensure order can't resubmitted again", async() => {
-    result = await oracle.getOrderStatus(hash);
-    assert.equal(result, NinjaOracle.OrderStatus.COMPLETED, "Order status not COMPLETED");
-
-    result = await oracle.storeOrder(to_address, amount, nonce, signature);
-    truffleAssert.eventNotEmitted(result, "OrderCompleted");
-
-    result = await oracle.getOrderStatus(hash);
-    assert.equal(result, NinjaOracle.OrderStatus.COMPLETED, "Order status not COMPLETED");
-  });
+  //   result = await oracle.getOrderStatus(hash);
+  //   assert.equal(result, NinjaOracle.OrderStatus.COMPLETED, "Order status not COMPLETED");
+  // });
 
   it("Should increase to account balance by num_orders * amount", async() => {
     var to_addr_start = await ninja.balanceOf(to_address);
@@ -154,23 +150,17 @@ contract('NinjaToken', async accounts => {
 
     orders = [];
     hashes = [];
+    all_hashes = 0;
     for (let i = 0; i < num_orders; i++) {
       nonce++;
-      hash = await web3.utils.keccak256(web3.utils.encodePacked(to_address, amount, nonce));
-      signature = await web3.eth.sign(hash, from_address);
-      signature = fixSignature(signature);
-      orders.push([to_address, amount, nonce, signature])
+      hash = hashOrder([to_address, amount, nonce]);
+      orders.push([to_address, amount, nonce]);
       hashes.push(hash);
     }
-    // Submit and complete orders
-    await ninja.ninjaTransferUntrusted(amount * num_orders, oracle.address, orders, []);
-    await ninja.ninjaTransferUntrusted(0, oracle.address, [], hashes);
-
-    // Check that hashes are in the books
-    // for (let i = 0; i < num_orders; i++) {
-    //   result = await oracle.getOrderStatus(hashes[i]);
-    //   assert.equal(result, NinjaOracle.OrderStatus.SUBMITTED, "Order not submitted: " + hashes[i]);
-    // }
+    let signature = await calculateSignature(orders);
+    // Complete orders
+    result = await ninja.ninjaTransferUntrusted(amount * num_orders, oracle.address, orders, signature);
+    console.log(result.receipt.gasUsed)
 
     var to_addr_finish = await ninja.balanceOf(to_address);    
     to_addr_start = to_addr_start.toNumber();
