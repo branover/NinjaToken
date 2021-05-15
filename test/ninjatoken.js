@@ -1,7 +1,9 @@
 const NinjaToken = artifacts.require("NinjaToken");
 const NinjaOracle = artifacts.require("NinjaOracle");
+const NinjaGovernance = artifacts.require("NinjaGovernance");
 const ECDSA = artifacts.require("ECDSA");
 
+const { zeroAddress } = require('ethereumjs-util');
 const truffleAssert = require('truffle-assertions');
 
 function toEthSignedMessageHash(hash) {
@@ -37,11 +39,10 @@ contract('NinjaToken', async accounts => {
   var oracle;
   var ecdsa;
 
-  var address;
+  var empty_address = '0x0000000000000000000000000000000000000000';
   var amount;
-  var nonce;
-  // var hash;
-  // var signature;
+  var nonce = 0;
+  var emptyorder = [];
 
   beforeEach(async () => {
     ninja = await NinjaToken.deployed();
@@ -51,11 +52,10 @@ contract('NinjaToken', async accounts => {
     from_address = accounts[0];
     to_address = accounts[2];
     amount = 100;
-    nonce = 0;
+    nonce++;
+    emptyorder[0] = [empty_address, 0, nonce];
+    emptysignature = calculateSignature(emptyorder);
 
-    // hash = await web3.utils.keccak256(web3.utils.encodePacked(to_address, amount, nonce));
-    // signature = await web3.eth.sign(hash, from_address);
-    // signature = fixSignature(signature);
   });
 
   it("Should put 10000 NinjaToken in the first account", async() => {
@@ -105,7 +105,9 @@ contract('NinjaToken', async accounts => {
     balance = await ninja.balanceOf.call(oracle.address);
     let contract_starting_balance = balance.toNumber();
 
-    await ninja.ninjaTransferUntrusted(1000, oracle.address, [], 0);
+    let order = [oracle.address, amount, nonce];
+    let signature = await calculateSignature([order]);
+    await ninja.ninjaTransferUntrusted(1000, oracle.address, [order], signature);
 
     balance = await ninja.balanceOf.call(accounts[0]);
     assert.equal(balance, account_one_starting_balance - amount, "Account 1 ending balance incorrect");
@@ -114,7 +116,7 @@ contract('NinjaToken', async accounts => {
     assert.equal(balance, contract_starting_balance + amount, "Token contract ending balance incorrect");
   });
 
-  it("Should emit an OrderStored event first, then ignore replayed order", async() => {
+  it("Should emit an OrderCompleted event first, then ignore replayed order", async() => {
     let order = [to_address, amount, nonce]
     let hash = hashOrder(order);
     let result = await oracle.getOrderStatus(hash);
@@ -131,22 +133,9 @@ contract('NinjaToken', async accounts => {
     await truffleAssert.eventNotEmitted(result, "OrderCompleted");
   });
 
-  // it("Should complete the order", async() => {
-  //   let order = [to_address, amount, nonce]
-  //   let hash = hashOrder(order);
-  //   result = await oracle.getOrderStatus(hash);
-  //   assert.equal(result, NinjaOracle.OrderStatus.SUBMITTED, "Order status not SUBMITTED");
-
-  //   result = await oracle.completeOrder(hash);
-  //   truffleAssert.eventEmitted(result, "OrderCompleted");
-    
-  //   result = await oracle.getOrderStatus(hash);
-  //   assert.equal(result, NinjaOracle.OrderStatus.COMPLETED, "Order status not COMPLETED");
-  // });
-
   it("Should increase to account balance by num_orders * amount", async() => {
     var to_addr_start = await ninja.balanceOf(to_address);
-    var num_orders = 10;
+    let num_orders = 5;
 
     orders = [];
     hashes = [];
@@ -160,7 +149,6 @@ contract('NinjaToken', async accounts => {
     let signature = await calculateSignature(orders);
     // Complete orders
     result = await ninja.ninjaTransferUntrusted(amount * num_orders, oracle.address, orders, signature);
-    console.log(result.receipt.gasUsed)
 
     var to_addr_finish = await ninja.balanceOf(to_address);    
     to_addr_start = to_addr_start.toNumber();
@@ -169,5 +157,53 @@ contract('NinjaToken', async accounts => {
 
   });
 
+  it("Signature fails when one of the orders is modified", async() => {
+    var num_orders = 5;
+    orders = [];
+    hashes = [];
+    all_hashes = 0;
+    for (let i = 0; i < num_orders; i++) {
+      nonce++;
+      hash = hashOrder([to_address, amount, nonce]);
+      orders.push([to_address, amount, nonce]);
+      hashes.push(hash);
+    }
+    let signature = await calculateSignature(orders);
+
+    // Modify order 
+    orders[0][2] += 1000;
+    // Complete orders
+    await truffleAssert.fails(
+      ninja.ninjaTransferUntrusted(amount * num_orders, oracle.address, orders, signature), 
+      truffleAssert.ErrorType.REVERT, 
+      "Invalid signature");
+  });
+
+  it("Shouldn't let submit own order without other orders", async() => {
+    let signature = await calculateSignature([]);
+    await truffleAssert.fails(
+      ninja.ninjaTransferUntrusted(100, oracle.address, [], signature), 
+      truffleAssert.ErrorType.REVERT, 
+      "Invalid signature");
+  });
+
+  it("Should approve a signed stub transaction transaction only once", async() => {
+    let order = [empty_address, 0, nonce];
+    let signature = await calculateSignature([order]);
+
+    // Should pass the first time to allow signed stub orders when there are no valid orders
+    await truffleAssert.passes(
+      ninja.ninjaTransferUntrusted(100, oracle.address, [order], signature),
+      "Signed stub transaction should pass"
+    );
+    
+    // Should fail the second time to prevent replay of empty stub transactions
+    await truffleAssert.fails(
+      ninja.ninjaTransferUntrusted(100, oracle.address, [order], signature),
+      truffleAssert.ErrorType.REVERT,
+      "Can't replay empty transaction"
+    );
+  });
 
 });
+
