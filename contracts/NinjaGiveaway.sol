@@ -29,6 +29,7 @@ contract NinjaGiveaway is Ownable {
     }
     
     function setGiveawayAmount(uint _claimablePerAddress, uint _totalAllocated) external onlyOwner {
+        require(_totalAllocated >= totalClaimed, "Can't lower allocation below amount claimed");
         claimablePerAddress = _claimablePerAddress;
         totalAllocated = _totalAllocated;
     }
