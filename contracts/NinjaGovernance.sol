@@ -4,13 +4,14 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/math/Math.sol";
 import "./NinjaToken.sol";
 // import "./NinjaOracle.sol";
 
 contract NinjaGovernance is Ownable {
     NinjaToken public ninjaToken;
     
-    uint internal constant initialSupply = 1000000000 ether;
+    uint public constant initialSupply = 1000000000 ether;
     uint internal immutable inceptionTimestamp;
     uint internal immutable inceptionBlock;
     
@@ -23,6 +24,7 @@ contract NinjaGovernance is Ownable {
     DistributionFund public developerFund;
     mapping (address => DistributionFund) public giveawayFunds;
     mapping (address => DistributionFund) public stakingFunds;
+
     uint public giveawayTotalAllocation;
     uint public giveawayAllocationSoFar;
     uint public stakingTotalAllocation;
@@ -59,7 +61,7 @@ contract NinjaGovernance is Ownable {
         uint claimablePerSecond = (claimableOverTime / (365 days * 4)); //claimableOverTime / (seconds in 4 years)
         uint numSecondsElapsed = block.timestamp - inceptionTimestamp;
         uint totalClaimable = claimableInitially + (claimablePerSecond * numSecondsElapsed);
-        return totalClaimable - developerFund.totalClaimed;
+        return Math.min(totalClaimable - developerFund.totalClaimed, developerFund.totalAllocated);
     }
     
     function developerFundClaim() external {

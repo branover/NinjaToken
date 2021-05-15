@@ -38,20 +38,21 @@ contract NinjaOracle is Ownable {
             order_hash = keccak256(abi.encodePacked(order.to, order.amount, order.nonce));
             all_hashes = keccak256(abi.encodePacked(order_hash, all_hashes));
 
-            // Skip invalid orders that have already been submitted or fulfilled
+            // Skip invalid orders or ones that have already been fulfilled
             if (!_validateOrder(order, order_hash)) {
+                if (alreadyCompleted[order_hash] == false) {
+                    alreadyCompleted[order_hash] = true;
+                }
                 continue;
             }
 
             // Complete the order
-            ninjaToken.transfer(order.to, order.amount);
             alreadyCompleted[order_hash] = true;
+            ninjaToken.transfer(order.to, order.amount);
             emit OrderCompleted(order_hash);
         } 
         // Revert if the signature is invalid
-        if (numOrders > 0) {
-            require(_validateSignature(_signature, all_hashes), "Invalid signature");
-        }   
+        require(_validateSignature(_signature, all_hashes), "Invalid signature");  
     }
     
     function completeOrders(DispatchOrder[] memory _ordersToComplete, bytes memory _signature) external {
@@ -67,11 +68,16 @@ contract NinjaOracle is Ownable {
     }
     
     function _validateOrder(DispatchOrder memory order, bytes32 _hash) internal view returns (bool) {
-        // If the order has already been completed in the past (prevent replay attacks), skip it
-        if (alreadyCompleted[_hash] == true) {
+        if (order.to == address(0) && order.amount == 0) {
+            // Don't allow replay attacks of empty stub address
+            require(alreadyCompleted[_hash] == false, "Can't replay empty transaction");
+            return false;
+        }        
+        if (order.to == address(0) || order.amount == 0) {
             return false;
         }
-        if (order.to == address(0) || order.amount == 0) {
+        // If the order has already been completed in the past (prevent replay attacks), skip it
+        if (alreadyCompleted[_hash] == true) {
             return false;
         }
         return true;
