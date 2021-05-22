@@ -11,7 +11,9 @@ import "./NinjaToken.sol";
 contract NinjaGovernance is Ownable {
     NinjaToken public ninjaToken;
     
+    // TODO Reenable this line    
     uint public constant initialSupply = 1000000000 ether;
+    // uint public constant initialSupply = 100000000000000;
     uint internal immutable inceptionTimestamp;
     uint internal immutable inceptionBlock;
     
@@ -35,6 +37,9 @@ contract NinjaGovernance is Ownable {
         inceptionBlock = block.number;
         inceptionTimestamp = block.timestamp;
         ninjaToken = new NinjaToken(initialSupply);
+
+        // TODO comment out, just for testing
+        ninjaToken.transfer(msg.sender,1000000);
         
         // TODO set owner or admin
         

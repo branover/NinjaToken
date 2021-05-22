@@ -33,8 +33,8 @@ async function calculateSignature(orders) {
 function hashOrder(order) {
   return web3.utils.keccak256(web3.utils.encodePacked(order[0], order[1], order[2]));
 }
-
 contract('NinjaToken', async accounts => {
+  var governance;
   var ninja;
   var oracle;
   var ecdsa;
@@ -45,7 +45,9 @@ contract('NinjaToken', async accounts => {
   var emptyorder = [];
 
   beforeEach(async () => {
-    ninja = await NinjaToken.deployed();
+    governance = await NinjaGovernance.deployed();
+    let ninja_addr = await governance.ninjaToken();
+    ninja = await NinjaToken.at(ninja_addr);
     oracle = await NinjaOracle.deployed();
     ecdsa = await ECDSA.deployed(); 
     
@@ -61,7 +63,7 @@ contract('NinjaToken', async accounts => {
   it("Should put 10000 NinjaToken in the first account", async() => {
     let instance = await NinjaToken.deployed();
     let balance = await instance.balanceOf.call(accounts[0]);
-    assert.equal(balance.valueOf(), 10000);
+    assert.equal(balance,10000);
   });
 
   it("Should send coin correctly", async() => {
@@ -72,48 +74,48 @@ contract('NinjaToken', async accounts => {
     let amount = 10;
 
     let balance = await ninja.balanceOf.call(account_one);
-    let account_one_starting_balance = balance.toNumber();
+    let account_one_starting_balance = balance;
 
     balance = await ninja.balanceOf.call(account_two);
-    let account_two_starting_balance = balance.toNumber();
+    let account_two_starting_balance = balance;
     await ninja.transfer(account_two, amount, { from: account_one });
 
     balance = await ninja.balanceOf.call(account_one);
-    let account_one_ending_balance = balance.toNumber();
+    let account_one_ending_balance = balance;
 
     balance = await ninja.balanceOf.call(account_two);
-    let account_two_ending_balance = balance.toNumber();
+    let account_two_ending_balance = balance;
 
     assert.equal(
       account_one_ending_balance,
-      account_one_starting_balance - amount,
+      (account_one_starting_balance - amount),
       "Amount wasn't correctly taken from the sender"
     );
     assert.equal(
-      account_two_ending_balance,
-      account_two_starting_balance + amount,
+      account_two_ending_balance.toNumber(),
+      (account_two_starting_balance.toNumber() + amount),
       "Amount wasn't correctly sent to the receiver"
     );
   });
 
   it("Should send to NinjaToken contract address", async() => {
-    let amount = 1000;
+    let amount = new web3.utils.BN(1000);
 
     let balance = await ninja.balanceOf.call(accounts[0]);
-    let account_one_starting_balance = balance.toNumber();
+    let account_one_starting_balance = balance;
 
     balance = await ninja.balanceOf.call(oracle.address);
-    let contract_starting_balance = balance.toNumber();
+    let contract_starting_balance = balance;
 
     let order = [oracle.address, amount, nonce];
     let signature = await calculateSignature([order]);
-    await ninja.ninjaTransferUntrusted(1000, oracle.address, [order], signature);
+    await ninja.ninjaTransferUntrusted(amount, oracle.address, [order], signature);
 
     balance = await ninja.balanceOf.call(accounts[0]);
-    assert.equal(balance, account_one_starting_balance - amount, "Account 1 ending balance incorrect");
+    assert.isTrue(balance.eq(account_one_starting_balance.sub(amount)), "Account 1 ending balance incorrect");
 
     balance = await ninja.balanceOf.call(oracle.address);
-    assert.equal(balance, contract_starting_balance + amount, "Token contract ending balance incorrect");
+    assert.isTrue(balance.eq(contract_starting_balance.add(amount)), "Token contract ending balance incorrect");
   });
 
   it("Should emit an OrderCompleted event first, then ignore replayed order", async() => {

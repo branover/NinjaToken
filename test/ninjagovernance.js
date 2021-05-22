@@ -94,8 +94,8 @@ contract('NinjaGovernance', async accounts => {
         let initialSupply = await governance.initialSupply(); 
 
         let expected_initial_dev_fund = initialSupply * 0.1;
-        let initial_dev_fund_plus = initial_dev_fund * 1.001;
-        let initial_dev_fund_minus = initial_dev_fund * 0.999;
+        let initial_dev_fund_plus = initial_dev_fund * 1.01;
+        let initial_dev_fund_minus = initial_dev_fund * 0.99;
         assert.isTrue(expected_initial_dev_fund > initial_dev_fund_minus, "Initial dev fund not 10%");
         assert.isTrue(expected_initial_dev_fund < initial_dev_fund_plus, "Initial dev fund not 10%");
 
@@ -105,6 +105,10 @@ contract('NinjaGovernance', async accounts => {
 
         increaseTime(1000);
         let end_dev_fund = await governance.developerFundClaimable();
+
+        // console.log(devFund.totalAllocated);
+        // console.log(end_dev_fund);
+        // console.log("Diff: " + (devFund.totalAllocated.sub(end_dev_fund)));
         assert.isTrue(devFund.totalAllocated.eq(end_dev_fund), "Dev fund not fully claimable after 4 years");
 
         increaseTime(1 * 365 * 24 * 60 * 60);
@@ -143,7 +147,7 @@ contract('NinjaGovernance', async accounts => {
         let before_claimed = await ninja.balanceOf(accounts[0]);
         await truffleAssert.passes(giveaway.claim(), "Claiming didn't work");
         let after_claimed = await ninja.balanceOf(accounts[0]);
-        assert.equal(after_claimed - before_claimed, claimablePerAddress, "Claimed wrong amount");
+        assert.equal(after_claimed.sub(before_claimed), claimablePerAddress, "Claimed wrong amount");
 
         claimable = await giveaway.getClaimable(accounts[0]);
         assert.equal(claimable, 0, "Didn't change claimable value after claim");

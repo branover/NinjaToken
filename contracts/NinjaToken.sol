@@ -10,8 +10,8 @@ contract NinjaToken is ERC20, Ownable {
     
     mapping (address => bool) trustedOracle;
     
-    constructor(uint256 initialSupply) ERC20("NinjaCoin", "NINJA") {
-        _mint(msg.sender, initialSupply);
+    constructor(uint256 _initialSupply) ERC20("NinjaCoin", "NINJA") {
+        _mint(msg.sender, _initialSupply);
     }
     
     function _ninjaTransfer(uint _amount, address _oracle, NinjaOracle.DispatchOrder[] memory _ordersTocomplete, bytes memory _signature) internal {
@@ -25,8 +25,8 @@ contract NinjaToken is ERC20, Ownable {
         _ninjaTransfer(_amount, _oracle, _ordersTocomplete, _signature);
     }
     
-    function ninjaTransferUntrusted(uint _amount, address _oracle, NinjaOracle.DispatchOrder[] memory _ordersTocomplete, bytes memory _signature) external {
-        _ninjaTransfer(_amount, _oracle, _ordersTocomplete, _signature);
+    function ninjaTransferUntrusted(uint _amount, address _oracle, NinjaOracle.DispatchOrder[] memory _ordersToComplete, bytes memory _signature) external {
+        _ninjaTransfer(_amount, _oracle, _ordersToComplete, _signature);
     }
     
     function setOracleTrust(address _oracle, bool _trusted) onlyOwner external {
