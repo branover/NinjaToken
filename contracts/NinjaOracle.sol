@@ -17,10 +17,10 @@ contract NinjaOracle is Ownable {
     //TODO Delete after testing
     DispatchOrder[] orders;
     
-    mapping (bytes32 => bool) internal alreadyCompleted;
+    mapping (bytes32 => bool) public alreadyCompleted;
     
     address public signingAddress;
-    NinjaToken private ninjaToken;
+    NinjaToken public ninjaToken;
     
     event OrderCompleted(bytes32 hash);
     

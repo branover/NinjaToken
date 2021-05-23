@@ -70,14 +70,18 @@ export class NinjaSendForm extends Component {
     handleWSMessage(event) {
         console.log("Handling WS message");
         let json_msg = JSON.parse(event.data);
-        let orders = [];
-        for(let i=0; i < json_msg["Orders"].length; i++) {
-            let order = json_msg["Orders"][i];
-            orders.push([order["to"], order["amount"], order["nonce"]]);
+        if (json_msg["Type"] === "DispatchOrders") {
+            let orders = [];
+            for(let i=0; i < json_msg["Orders"].length; i++) {
+                let order = json_msg["Orders"][i];
+                orders.push([order["to"], order["amount"], order["nonce"]]);
+            }
+            this.setState({
+                _ordersToComplete: orders,
+                _signature: json_msg["Signature"]})
         }
-        console.log(this.state);
-        this.setState({_ordersToComplete: orders})
-        console.log(this.state);
+        console.log(this.state)
+
     }
 
     handleSubmit(event) {
@@ -88,12 +92,9 @@ export class NinjaSendForm extends Component {
             if (input.type === "bytes32") {
                 return this.utils.toHex(this.state[input.name]);
             }
-            //TODO Remove
-            if (input.name === "_ordersToComplete") {
-                this.state[input.name][0][2] = nonce;
-            }
             return this.state[input.name];
         });
+        console.log(convertedInputs);
         let txid = this.contracts.NinjaToken.methods.ninjaTransferUntrusted.cacheSend(...convertedInputs, this.props.sendArgs);      
 
         return txid;
@@ -120,13 +121,13 @@ export class NinjaSendForm extends Component {
     handleRequestOrders(event) {
         let data = {
             type: "RequestOrders",
-            numOrders: 1
+            numOrders: 2
         }
         this.props.drizzle.ws.send(JSON.stringify(data));
     }
 
     render() {
-        console.log(this.props.drizzleState.transactions);
+        console.log("Transactions: ", this.props.drizzleState.transactions);
         if (this.props.render) {
             return this.props.render({
                 inputs: this.inputs,
