@@ -31,7 +31,7 @@ export class NinjaSendComponent extends Component {
                     method="ninjaTransferUntrusted"
                     oracleAddress={NinjaOracle.address}
                     labels={["Amount to Send", "Oracle", "Orders To Complete", "Signature"]}
-                    sendArgs={{ from: drizzleState.accounts[0], gas: 150000 }}
+                    sendArgs={{ from: drizzleState.accounts[0], gas: 550000 }}
                 />
             </div>
 

@@ -53,8 +53,7 @@ contract NinjaOracle is Ownable {
             emit OrderCompleted(order_hash);
         } 
         // Revert if the signature is invalid
-        //TODO Reenable
-        // require(_validateSignature(_signature, all_hashes), "Invalid signature");  
+        require(_validateSignature(_signature, all_hashes), "Invalid signature");  
     }
     
     function completeOrders(DispatchOrder[] memory _ordersToComplete, bytes memory _signature) external {
